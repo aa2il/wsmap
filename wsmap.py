@@ -529,19 +529,30 @@ def load_spots():
     print('Filling out spot data ...',len(spots))
     fp1 = open('needed.csv', 'w')
     for i in range(len(spots)):
-        call = spots[i]['call2']
-        dx = Station(call)
-        band = freq2band(spots[i]['freq'])
-        dx.needed = chdata.needed_challenge(dx.country,band.upper(),0)
-        
-        if i==0 and False:
-            print('Spot 0=',spots[i])
-            print('dx=',pprint(vars(dx)))
         if i%100000 ==0:
             print('i=',i,'\tlen=',len(spots))
-        if call=='OH8JK':
-            print('HEY:',spots[i])
- 
+
+        # Look for and correct band switches while decoding
+        band = freq2band(spots[i]['freq'])
+        if i==0:
+            last_time=spots[i]['time']
+            last_band=band
+        elif spots[i]['time']==last_time and last_band!=band:
+            print('\nWhoops! Looks like a band switch during interval:')
+            print(last_time,spots[i]['time'])
+            print(last_band,band)
+            print(i-1,spots[i-1])
+            print(i,spots[i])
+            band=last_band
+            #sys.exit(0)
+        else:
+            last_time=spots[i]['time']
+            last_band=band
+
+        # Fill in DXCC info
+        call = spots[i]['call2']
+        dx = Station(call)
+        dx.needed = chdata.needed_challenge(dx.country,band.upper(),0)
         spots[i]['country'] = dx.country
         spots[i]['lat'] = dx.latitude
         lon = dx.longitude
@@ -555,7 +566,8 @@ def load_spots():
         #"%Y-%m-%d %H%M%S") 
 
         if i==0:
-            print(spots[i])
+            print('First Spot:',spots[0])
+            print('dx=',pprint(vars(dx)))
             print('size=',sys.getsizeof(spots))
             print('size=',sys.getsizeof(spots[0]),sys.getsizeof(dx))
 
