@@ -104,7 +104,6 @@ class WSMAP_GUI(QMainWindow):
         super(WSMAP_GUI, self).__init__(parent)
 
         print('\nInit GUI ...\n')
-        self.needed=True
         self.spots=spots
         self.count=0
         self.lines=[]
@@ -113,7 +112,7 @@ class WSMAP_GUI(QMainWindow):
         # Start by putting up the root window
         self.win  = QWidget()
         self.setCentralWidget(self.win)
-        self.setWindowTitle('WS Mapper by AA2IL')
+        self.setWindowTitle('Weak Signal Spot Mapper by AA2IL')
 
         # We use a simple grid to layout controls
         self.grid = QGridLayout(self.win)
@@ -174,11 +173,13 @@ class WSMAP_GUI(QMainWindow):
         self.btn2.clicked.connect(self.Advance)
         self.grid.addWidget(self.btn2,row+4,col+1)
 
-        self.btn3 = QPushButton('All Spots')
-        #self.btn3.setToolTip('Showing All Slots')
-        self.btn3.clicked.connect(self.needed_only)
-        self.grid.addWidget(self.btn3,row+4,col+2)
-        self.needed_only(True)
+        self.selections=['ALL SPOTS','New DXCCs','New Slots','DXCC 2021']
+        self.select_cb = QComboBox()
+        self.select_cb.addItems(self.selections)
+        self.select_cb.currentIndexChanged.connect(self.Spot_Selection)
+        self.select_cb.setCurrentIndex(0)
+        self.grid.addWidget(self.select_cb,row+4,ncols-1)
+        self.needed='ALL SPOTS'
 
         # Status Boxes
         self.date1a = QLabel()
@@ -207,12 +208,15 @@ class WSMAP_GUI(QMainWindow):
         
         self.num_spots = QLabel()
         self.grid.addWidget(self.num_spots,row,ncols-1)
+        self.num_spots.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
         self.num_dxcc = QLabel()
         self.grid.addWidget(self.num_dxcc,row+1,ncols-1)
+        self.num_dxcc.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
         self.num_slots = QLabel()
         self.grid.addWidget(self.num_slots,row+2,ncols-1)
+        self.num_slots.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
         # Let's roll!
         self.show()
@@ -229,22 +233,11 @@ class WSMAP_GUI(QMainWindow):
             self.dT = int(a[0])
 
 
-    # Function to toggle needed only slots flag
-    def needed_only(self,Init=None):
-        if Init:
-            self.needed = Init
-        else:
-            self.needed = not self.needed
-            
-        if self.needed:
-            self.btn3.setText('Needed')
-            self.btn3.setToolTip('Showing only Needed Slots')
-        else:
-            self.btn3.setText('All Slots')
-            self.btn3.setToolTip('Showing All Slots')
-            
-        if not Init:
-            self.UpdateMap()
+    # Function to select spots according to need status
+    def Spot_Selection(self,idx):
+        self.needed=self.selections[idx]
+        print('Spot Selection: idx=',idx,'\t',self.needed)
+        self.UpdateMap()
 
     # Function to advance in time
     def Advance(self):
@@ -310,9 +303,15 @@ class WSMAP_GUI(QMainWindow):
         #print ' ' #calls
         for call in calls:
             dx = Station(call)
-            snrs = [x['snr'] for x in spots if x['call2']==call]
+            #snrs = [x['snr'] for x in spots if x['call2']==call]
+            snrs=[]
+            for x in spots:
+                if x['call2']==call:
+                    t=x['time'].strftime('%H:%M')
+                    snr=str(x['snr']).rjust(3,' ')
+                    snrs.append( t+' '+snr )
             #print '{0: <8}'.format(call),':','{0: <10}'.format(dx.country),':',snrs
-            print('{:8.8} : {:15.15} :'.format(call,dx.country),snrs)
+            print('{:8.8} : {:15.15} :'.format(call,dx.country),'\n',snrs)
 
             
 
@@ -360,18 +359,21 @@ class WSMAP_GUI(QMainWindow):
         #colors=['r','g','b','k','m','y','c','r','g','b','k','m','y','c']
         colors=['lime','magenta','blue','green','salmon','yellow',\
                 'orange','brown','purple','red']
-        spots2 = filter_spots(self.spots,self.date1,self.date2,Need=self.needed)
-        dxccs = count_dxccs(spots2)
+        spots2 = filter_spots(self.spots,self.date1,self.date2,Need='ALL SPOTS')
+        spots3 = filter_spots(self.spots,self.date1,self.date2,Need=self.needed)
+        dxccs = count_dxccs(spots3)
         print('dxccs=',dxccs)
         self.num_spots.setText( ('%d Spots' % len(spots2)) )
         self.num_dxcc.setText( ('%d DXCCs' % len(dxccs)) )
 
         nslots = 0
         for i in range(len(BANDS)):
-            spots3 = filter_spots(spots2,band=BANDS[i])
+            spots3 = filter_spots(spots2,band=BANDS[i],Need=self.needed)
             nslots += len( count_dxccs(spots3) )
             self.num_slots.setText( ('%d Slots' % nslots) )
-            if self.needed:
+            dxccs = count_dxccs(spots3)
+            print('dxccs=',dxccs)
+            if self.needed!='ALL SPOTS':
                 self.print_summary(spots3)
 
             lats = [x['lat'] for x in spots3]
@@ -506,7 +508,7 @@ class WSMAP_GUI(QMainWindow):
         #self.canvas.draw()
 
 
-
+# Function to load spots from ALL.TXT file
 def load_spots():
     
     rootlogger = "dxcsucker"
@@ -561,7 +563,10 @@ def load_spots():
         else:
             spots[i]['lon'] = lon             # None
         spots[i]['band'] = band
-        spots[i]['Needed'] = dx.needed
+        
+        spots[i]['New DXCCs'] = chdata.needed_challenge(dx.country,'ALL',0)
+        spots[i]['New Slots'] = dx.needed
+        spots[i]['DXCC 2021'] = chdata.needed_challenge(dx.country,2021,0)
         #spots[i]['TimeStamp'] = datetime.strptime( spots[i]['date']+' '+spots[i]['time'],
         #"%Y-%m-%d %H%M%S") 
 
@@ -596,31 +601,41 @@ def load_spots():
     return spots
 
 
-def count_dxccs(spots):
-    dxccs = list(set( [x['country'] for x in spots] ))
+# Function to generate list of DXCCs seen in list of spots
+def count_dxccs(spot_list):
+    dxccs = list(set( [x['country'] for x in spot_list] ))
     return dxccs
     
 
-def filter_spots(spots,date1=[],date2=[],band=[],Need=False):
+# Function to select spots based on band, date, "need", etc.
+def filter_spots(spots,date1=None,date2=None,band=None,Need=None):
     
     print('\nSelecting spots ...',date1,date2,band,Need)
-    if len(band)==0:
-        date1 = date1.replace(tzinfo=pytz.utc)
-        date2 = date2.replace(tzinfo=pytz.utc)
-        spots2 =[x for x in spots if x["TimeStamp"] >= date1 and \
-                 x["TimeStamp"] < date2 and (not Need or x['Needed']) ]
-    elif len(date1)==0 and len(date2)==0:
-        spots2 =[x for x in spots if x['band']==band and \
-                 (not Need or x['Needed']) ]
+    if not band:
+        bands=BANDS
+    else:
+        bands=[band]
+        
+    if not date1:
+        date1 = spots[0]['TimeStamp']
     else:
         date1 = date1.replace(tzinfo=pytz.utc)
+    if not date2:
+        date2 = spots[-1]['TimeStamp']
+    else:
         date2 = date2.replace(tzinfo=pytz.utc)
+
+    if Need=='ALL SPOTS':
         spots2 =[x for x in spots if x["TimeStamp"] >= date1 and \
-                 x["TimeStamp"] < date2 and x['band']==band and \
-                 (not Need or x['Needed']) ]
+                 x["TimeStamp"] < date2 and x['band'] in bands ]
+    else:
+        spots2 =[x for x in spots if x["TimeStamp"] >= date1 and \
+                 x["TimeStamp"] < date2 and x['band'] in bands and \
+                 x[Need] ]
+        #print("I don't know what I am doing here!")
 
     return spots2
-
+        
 
 ############################################################################################
 
