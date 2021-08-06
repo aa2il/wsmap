@@ -66,6 +66,8 @@ LOGFILE = WSJT_LOGFILE5
 LOGFILE = [WSJT_LOGFILE3,WSJT_LOGFILE4,WSJT_LOGFILE5]
 MAX_DAYS=7
 
+ALPHA=0.7
+
 ############################################################################################
 
 def freq2band(frq_KHz):
@@ -349,9 +351,9 @@ class WSMAP_GUI(QMainWindow):
 
         # make size of markers proportional to SNR
         ymax = 100.
-        ymin = 5.
+        ymin = 10.
         xmax = 0.
-        xmin = -20.
+        xmin = -25.
         slope = (ymax - ymin) / (xmax-xmin)
         offset = ymin - slope*xmin
 
@@ -371,14 +373,20 @@ class WSMAP_GUI(QMainWindow):
             spots3 = filter_spots(spots2,band=BANDS[i],Need=self.needed)
             nslots += len( count_dxccs(spots3) )
             self.num_slots.setText( ('%d Slots' % nslots) )
-            dxccs = count_dxccs(spots3)
-            print('dxccs=',dxccs)
+            dxccs2 = count_dxccs(spots3)
+            print('dxccs=',dxccs2)
             if self.needed!='ALL SPOTS':
                 self.print_summary(spots3)
 
             lats = [x['lat'] for x in spots3]
             lons = [x['lon'] for x in spots3]
-            size  = [slope*s['snr']+offset for s in spots3]
+            #size  = [slope*s['snr']+offset for s in spots3]
+            size=[]
+            for s in spots3:
+                if self.needed=='New DXCCs' and False:
+                    size .append( 100 )
+                else:
+                    size .append( slope*s['snr']+offset )
 
             if False:
                 # These corrections are needed if/when we use the miller projection in basemap
@@ -401,12 +409,12 @@ class WSMAP_GUI(QMainWindow):
 
             if True:
                 line = self.m.scatter(x,y,marker='o', c=colors[i], edgecolors=colors[i],\
-                                      s=size,alpha=0.3, \
+                                      s=size,alpha=ALPHA, \
                                       label=BANDS[i])
             else:
                 line = self.m.scatter(lons,lats,latlon=True,
                                       marker='o', c=colors[i], 
-                                      s=size,alpha=0.3, 
+                                      s=size,alpha=ALPHA, 
                                       label=BANDS[i])
             if self.count==1:
                 self.lines.append(line)
@@ -491,7 +499,7 @@ class WSMAP_GUI(QMainWindow):
     
         # cycle through these lines and set the desired style
         for line in all_lines:
-            line.set(linestyle='-', alpha=0.3, color='w')
+            line.set(linestyle='-', alpha=ALPHA, color='w')
 
         # Draw politcal boundaries
         m.drawcoastlines()
@@ -541,10 +549,10 @@ def load_spots():
             last_band=band
         elif spots[i]['time']==last_time and last_band!=band:
             print('\nWhoops! Looks like a band switch during interval:')
-            print(last_time,spots[i]['time'])
-            print(last_band,band)
-            print(i-1,spots[i-1])
-            print(i,spots[i])
+            #print(last_time,spots[i]['time'])
+            #print(last_band,band)
+            #print(i-1,spots[i-1])
+            #print(i,spots[i])
             band=last_band
             #sys.exit(0)
         else:
