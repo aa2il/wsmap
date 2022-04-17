@@ -52,6 +52,7 @@ import numpy as np
 from itertools import chain
 import cProfile
 import time 
+from settings import read_settings
 
 ############################################################################################
 
@@ -682,7 +683,14 @@ if __name__ == "__main__":
     print('\n   WS Mapper beginning ...\n')
 
     pr = cProfile.Profile()
-    chdata = ChallengeData('/home/joea/AA2IL/states.xls')
+
+    SETTINGS,RCFILE = read_settings('.keyerrc')
+    MY_CALL = SETTINGS['MY_CALL']
+    print('MY_CALL=',MY_CALL)
+    fname=os.path.expanduser('~/'+MY_CALL+'/states.xls')
+    print('fname=',fname)
+    chdata = ChallengeData(fname)
+    #sys.exit(0)
     
     pr.enable()
     spots  = load_spots()
